@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Campsite Dogs v10 - Tent Tethers</title>
-<link rel="manifest" href="manifest.json?v=10">
+<title>Campsite Dogs v11 - Longer Leads</title>
+<link rel="manifest" href="manifest.json?v=11">
 <meta name="theme-color" content="#3f6b3f">
 <style>
 :root{--green:#3f6b3f;--cream:#fff8e8;--dark:#263522}
@@ -50,8 +50,8 @@ svg#leashes{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-e
 </style>
 </head>
 <body>
-<header><h1>🏕️ Campsite Dogs v10</h1><button id="newGame">New Game</button></header>
-<div id="info">Dogs are tethered near tents with more time before new dogs arrive. Order randomizes each game.</div>
+<header><h1>🏕️ Campsite Dogs v11</h1><button id="newGame">New Game</button></header>
+<div id="info">Longer leads and closer tents. Order randomizes each game.</div>
 <main id="game">
   <svg id="leashes"></svg>
   <div id="panel">
@@ -65,11 +65,11 @@ if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then
 if(window.caches){caches.keys().then(keys=>keys.forEach(k=>caches.delete(k)));}
 
 const DOGS=[
-{name:"Reba",breed:"brown corgi",className:"dog brown corgi",speed:.72,leash:175,patience:.55,curiosity:.70,tentGroup:"soloA"},
-{name:"Mollye",breed:"brown German Shepherd",className:"dog brown",speed:1.02,leash:185,patience:.85,curiosity:1.05,tentGroup:"pack"},
-{name:"Stella",breed:"black lab",className:"dog black",speed:.92,leash:185,patience:.75,curiosity:.95,tentGroup:"pack"},
-{name:"Percy",breed:"Coton",className:"dog coton",speed:1.10,leash:175,patience:1.0,curiosity:1.15,tentGroup:"soloB"},
-{name:"Lizzie",breed:"black lab",className:"dog black",speed:.96,leash:190,patience:.8,curiosity:1.0,tentGroup:"pack"}
+{name:"Reba",breed:"brown corgi",className:"dog brown corgi",speed:.72,leash:225,patience:.55,curiosity:.70,tentGroup:"soloA"},
+{name:"Mollye",breed:"brown German Shepherd",className:"dog brown",speed:1.02,leash:235,patience:.85,curiosity:1.05,tentGroup:"pack"},
+{name:"Stella",breed:"black lab",className:"dog black",speed:.92,leash:235,patience:.75,curiosity:.95,tentGroup:"pack"},
+{name:"Percy",breed:"Coton",className:"dog coton",speed:1.10,leash:225,patience:1.0,curiosity:1.15,tentGroup:"soloB"},
+{name:"Lizzie",breed:"black lab",className:"dog black",speed:.96,leash:240,patience:.8,curiosity:1.0,tentGroup:"pack"}
 ];
 
 const game=document.getElementById("game"), leashSvg=document.getElementById("leashes"), whine=document.getElementById("whine"), statusEl=document.getElementById("status"), dogCountEl=document.getElementById("dogCount");
@@ -109,10 +109,10 @@ function makeObstacle(type,label,x,y,moveable=false){
 }
 function buildObstacles(){
  // 4 fixed tents
- makeObstacle("tent","",pctX(.08),pctY(.10),false);  // Reba-ish solo tent
- makeObstacle("tent","",pctX(.74),pctY(.10),false);  // Mollye/Stella/Lizzie tent area
- makeObstacle("tent","",pctX(.07),pctY(.68),false);  // Percy-ish solo tent
- makeObstacle("tent","",pctX(.75),pctY(.69),false);
+ makeObstacle("tent","",pctX(.20),pctY(.16),false);  // Reba-ish solo tent
+ makeObstacle("tent","",pctX(.60),pctY(.16),false);  // Mollye/Stella/Lizzie tent area
+ makeObstacle("tent","",pctX(.22),pctY(.64),false);  // Percy-ish solo tent
+ makeObstacle("tent","",pctX(.61),pctY(.64),false);
 
  // 4 fixed tables closer together, but not directly on top of the tent tethers
  makeObstacle("table","▤",pctX(.34),pctY(.38),false);
@@ -134,12 +134,12 @@ function buildObstacles(){
 function anchorForDog(d, packIndex){
  const w=game.clientWidth,h=game.clientHeight;
  const anchors={
-   soloA:{stake:[w*.17,h*.20],start:[w*.23,h*.28]},
-   soloB:{stake:[w*.17,h*.77],start:[w*.25,h*.68]},
-   pack0:{stake:[w*.78,h*.21],start:[w*.68,h*.28]},
-   pack1:{stake:[w*.84,h*.25],start:[w*.73,h*.34]},
-   pack2:{stake:[w*.75,h*.31],start:[w*.66,h*.38]},
-   fallback:{stake:[w*.78,h*.78],start:[w*.68,h*.67]}
+   soloA:{stake:[w*.25,h*.24],start:[w*.31,h*.31]},
+   soloB:{stake:[w*.27,h*.70],start:[w*.34,h*.61]},
+   pack0:{stake:[w*.66,h*.24],start:[w*.57,h*.31]},
+   pack1:{stake:[w*.71,h*.29],start:[w*.61,h*.36]},
+   pack2:{stake:[w*.62,h*.34],start:[w*.53,h*.40]},
+   fallback:{stake:[w*.67,h*.70],start:[w*.57,h*.61]}
  };
  if(d.tentGroup==="soloA") return anchors.soloA;
  if(d.tentGroup==="soloB") return anchors.soloB;
