@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Campsite Dogs v11 - Longer Leads</title>
-<link rel="manifest" href="manifest.json?v=11">
+<title>Campsite Dogs v12 - Spawn Fix</title>
+<link rel="manifest" href="manifest.json?v=12">
 <meta name="theme-color" content="#3f6b3f">
 <style>
 :root{--green:#3f6b3f;--cream:#fff8e8;--dark:#263522}
@@ -50,8 +50,8 @@ svg#leashes{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-e
 </style>
 </head>
 <body>
-<header><h1>🏕️ Campsite Dogs v11</h1><button id="newGame">New Game</button></header>
-<div id="info">Longer leads and closer tents. Order randomizes each game.</div>
+<header><h1>🏕️ Campsite Dogs v12</h1><button id="newGame">New Game</button></header>
+<div id="info">Spawn fix: dogs start clear of tents and get a short grace period before tangling.</div>
 <main id="game">
   <svg id="leashes"></svg>
   <div id="panel">
@@ -109,10 +109,10 @@ function makeObstacle(type,label,x,y,moveable=false){
 }
 function buildObstacles(){
  // 4 fixed tents
- makeObstacle("tent","",pctX(.20),pctY(.16),false);  // Reba-ish solo tent
- makeObstacle("tent","",pctX(.60),pctY(.16),false);  // Mollye/Stella/Lizzie tent area
- makeObstacle("tent","",pctX(.22),pctY(.64),false);  // Percy-ish solo tent
- makeObstacle("tent","",pctX(.61),pctY(.64),false);
+ makeObstacle("tent","",pctX(.18),pctY(.12),false);  // Reba-ish solo tent
+ makeObstacle("tent","",pctX(.62),pctY(.12),false);  // Mollye/Stella/Lizzie tent area
+ makeObstacle("tent","",pctX(.18),pctY(.66),false);  // Percy-ish solo tent
+ makeObstacle("tent","",pctX(.62),pctY(.66),false);
 
  // 4 fixed tables closer together, but not directly on top of the tent tethers
  makeObstacle("table","▤",pctX(.34),pctY(.38),false);
@@ -134,12 +134,12 @@ function buildObstacles(){
 function anchorForDog(d, packIndex){
  const w=game.clientWidth,h=game.clientHeight;
  const anchors={
-   soloA:{stake:[w*.25,h*.24],start:[w*.31,h*.31]},
-   soloB:{stake:[w*.27,h*.70],start:[w*.34,h*.61]},
-   pack0:{stake:[w*.66,h*.24],start:[w*.57,h*.31]},
-   pack1:{stake:[w*.71,h*.29],start:[w*.61,h*.36]},
-   pack2:{stake:[w*.62,h*.34],start:[w*.53,h*.40]},
-   fallback:{stake:[w*.67,h*.70],start:[w*.57,h*.61]}
+   soloA:{stake:[w*.25,h*.23],start:[w*.38,h*.32]},
+   soloB:{stake:[w*.26,h*.72],start:[w*.38,h*.59]},
+   pack0:{stake:[w*.66,h*.23],start:[w*.55,h*.32]},
+   pack1:{stake:[w*.71,h*.28],start:[w*.58,h*.42]},
+   pack2:{stake:[w*.63,h*.34],start:[w*.50,h*.36]},
+   fallback:{stake:[w*.67,h*.72],start:[w*.55,h*.59]}
  };
  if(d.tentGroup==="soloA") return anchors.soloA;
  if(d.tentGroup==="soloB") return anchors.soloB;
@@ -157,7 +157,7 @@ function addDog(orderIndex){
  const dog=document.createElement("div"); dog.className=d.className;
  dog.innerHTML=`<div class="name">${d.name}</div><div class="tail"></div><div class="body"></div><div class="head"></div><div class="ear left"></div><div class="ear right"></div><div class="face">● ●<br>ᴥ</div><div class="legs">▌▌</div>`;
  dog.addEventListener("pointerdown",startDragDog); game.appendChild(dog);
- dogs.push({...d,el:dog,path,stakeX:sx,stakeY:sy,x,y,tx:x+rand(-20,20),ty:y+rand(-20,20),wrapped:[],dogTangled:false,held:false,stuckOn:null,stuckTimer:0});
+ dogs.push({...d,el:dog,path,stakeX:sx,stakeY:sy,x,y,tx:x+rand(-20,20),ty:y+rand(-20,20),wrapped:[],dogTangled:false,held:false,stuckOn:null,stuckTimer:0,spawnGrace:2600});
  dogCountEl.textContent=dogs.length;
  statusEl.textContent=`🐕 ${d.name} joined near ${d.tentGroup==="pack"?"the shared tent":"a tent"}! Dogs: ${dogs.length}/5.`;
 }
@@ -193,7 +193,7 @@ function moveDrag(e){
 function endDrag(e){if(dragging){dragging.classList.remove("dragging");dragging.removeEventListener("pointermove",moveDrag);dragging.removeEventListener("pointerup",endDrag)} if(dragType==="dog"){const d=dogs.find(x=>x.el===dragging);if(d)d.held=false} dragging=null;dragType=null}
 
 function obstacleCenter(ob){return{x:ob.offsetLeft+ob.offsetWidth/2,y:ob.offsetTop+ob.offsetHeight/2,r:Math.max(ob.offsetWidth,ob.offsetHeight)/2}}
-function lineHitsObstacle(x1,y1,x2,y2,ob){const c=obstacleCenter(ob),dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy||1;let t=((c.x-x1)*dx+(c.y-y1)*dy)/len2;t=Math.max(0,Math.min(1,t));const px=x1+t*dx,py=y1+t*dy;return distance(px,py,c.x,c.y)<c.r*.70}
+function lineHitsObstacle(x1,y1,x2,y2,ob){const c=obstacleCenter(ob),dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy||1;let t=((c.x-x1)*dx+(c.y-y1)*dy)/len2;t=Math.max(0,Math.min(1,t));const px=x1+t*dx,py=y1+t*dy;return distance(px,py,c.x,c.y)<c.r*.58}
 function chooseTarget(d){
  if(obstacles.length && Math.random()<0.50*d.curiosity){
    const ob=obstacles[Math.floor(Math.random()*obstacles.length)], c=obstacleCenter(ob), a=rand(0,Math.PI*2), r=rand(c.r*.25,c.r*1.2);
@@ -205,6 +205,7 @@ function chooseTarget(d){
 }
 function moveDogs(dt){
  dogs.forEach(d=>{
+  if(d.spawnGrace && d.spawnGrace > 0) d.spawnGrace -= dt;
   if(d.held)return;
   if(d.stuckOn){
     const ob=obstacles.find(o=>o.dataset.id===d.stuckOn);
@@ -224,22 +225,23 @@ function updateFurnitureWraps(){
   const start=d.wrapped.length?d.wrapped[d.wrapped.length-1]:{x:d.stakeX,y:d.stakeY};
   obstacles.forEach(ob=>{
     const c=obstacleCenter(ob);
-    const dogNear=distance(d.x,d.y,c.x,c.y)<c.r*.55;
-    const crosses=lineHitsObstacle(start.x,start.y,d.x,d.y,ob);
+    const inGrace = d.spawnGrace && d.spawnGrace > 0;
+    const dogNear=!inGrace && distance(d.x,d.y,c.x,c.y)<c.r*.50;
+    const crosses=!inGrace && lineHitsObstacle(start.x,start.y,d.x,d.y,ob);
     if(!d.wrapped.some(w=>w.id===ob.dataset.id)&&(crosses||dogNear)){
       d.wrapped.push({id:ob.dataset.id,x:c.x,y:c.y});
-      if(dogNear||usedLeash(d)>d.leash*.95){d.stuckOn=ob.dataset.id;d.stuckTimer=0;}
+      if(!inGrace && (dogNear||usedLeash(d)>d.leash*.985)){d.stuckOn=ob.dataset.id;d.stuckTimer=0;}
     }
   });
   d.wrapped=d.wrapped.filter((wrap,i)=>{
     const ob=obstacles.find(o=>o.dataset.id===wrap.id); if(!ob)return false;
     const c=obstacleCenter(ob); wrap.x=c.x; wrap.y=c.y;
     const prev=i===0?{x:d.stakeX,y:d.stakeY}:d.wrapped[i-1];
-    const still=lineHitsObstacle(prev.x,prev.y,d.x,d.y,ob)||distance(d.x,d.y,c.x,c.y)<c.r*.72||i<d.wrapped.length-1;
+    const still=lineHitsObstacle(prev.x,prev.y,d.x,d.y,ob)||distance(d.x,d.y,c.x,c.y)<c.r*.62||i<d.wrapped.length-1;
     if(!still&&d.stuckOn===wrap.id){d.stuckOn=null;d.stuckTimer=0;}
     return still;
   });
-  if(usedLeash(d)>d.leash*.98&&d.wrapped.length){d.stuckOn=d.wrapped[d.wrapped.length-1].id;d.stuckTimer+=16;}
+  if(!d.spawnGrace && usedLeash(d)>d.leash*.995&&d.wrapped.length){d.stuckOn=d.wrapped[d.wrapped.length-1].id;d.stuckTimer+=16;}
  });
 }
 function leashSegments(d){const pts=[{x:d.stakeX,y:d.stakeY},...d.wrapped,{x:d.x,y:d.y}],segs=[];for(let i=0;i<pts.length-1;i++)segs.push([pts[i],pts[i+1]]);return segs}
