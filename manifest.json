@@ -1,0 +1,9 @@
+{
+  "name": "Campsite Dogs",
+  "short_name": "Campsite Dogs",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#dff2da",
+  "theme_color": "#3f6b3f",
+  "icons": []
+}
