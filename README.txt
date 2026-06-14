@@ -1,17 +1,9 @@
-Campsite Dogs v7 - Campground Obstacles
+Campsite Dogs v8 - Closer Tables and Dog Progression
 
-New parameters:
-- Fire pit cannot be moved.
-- 4 tents cannot be moved.
-- 3 EZ Ups cannot be moved.
-- 4 tables cannot be moved.
-- 6 chairs can be moved.
-- Dogs have consistent leash lengths.
-- When wraps/crossings consume too much leash, dogs get stuck and whine faster.
-- Drag dogs back around fixed objects to unwind them. Only chairs can be moved.
-
-Files to replace in GitHub:
-- index.html
-- manifest.json
-- service-worker.js
-- README.txt
+Changes:
+- EZ Ups removed.
+- Tables are clustered closer together.
+- Dogs now keep joining automatically every 20 seconds.
+- Starts with Reba, then adds Mollye, Stella, Percy, and Lizzie.
+- Only chairs can move.
+- Tables, tents, and the fire pit are fixed.
