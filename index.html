@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Campsite Dogs v8</title>
-<link rel="manifest" href="manifest.json">
+<title>Campsite Dogs v10 - Tent Tethers</title>
+<link rel="manifest" href="manifest.json?v=10">
 <meta name="theme-color" content="#3f6b3f">
 <style>
 :root{--green:#3f6b3f;--cream:#fff8e8;--dark:#263522}
@@ -40,7 +40,7 @@ svg#leashes{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-e
 .obstacle{position:absolute;z-index:4;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;box-shadow:0 5px 0 rgba(0,0,0,.18);touch-action:none;border:2px solid rgba(0,0,0,.12)}
 .obstacle.fixed{outline:4px solid rgba(60,60,60,.25)}
 .obstacle.moveable{outline:4px dashed rgba(176,54,47,.35)}
-.chair{width:58px;height:52px;background:#dfad68}.table{width:94px;height:62px;background:#b57b48}.tent{width:88px;height:68px;background:#e9865c;clip-path:polygon(50% 0,100% 100%,0 100%);border:0}.fire{width:76px;height:76px;border-radius:50%;background:#5a4a3c;color:#ffcf55}
+.chair{width:58px;height:52px;background:#dfad68}.table{width:94px;height:62px;background:#b57b48}.tent{width:92px;height:72px;background:#e9865c;clip-path:polygon(50% 0,100% 100%,0 100%);border:0}.fire{width:76px;height:76px;border-radius:50%;background:#5a4a3c;color:#ffcf55}
 .lock{position:absolute;right:3px;bottom:1px;font-size:12px;background:#fff;border-radius:8px;padding:0 3px}
 #panel{position:absolute;bottom:10px;left:10px;right:10px;background:rgba(255,248,232,.95);border-radius:14px;padding:10px;z-index:10;box-shadow:0 3px 10px rgba(0,0,0,.18)}
 #whineOuter{height:14px;background:#e1d8c4;border-radius:999px;overflow:hidden}
@@ -50,32 +50,54 @@ svg#leashes{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-e
 </style>
 </head>
 <body>
-<header><h1>🏕️ Campsite Dogs</h1><button id="newGame">New Game</button></header>
-<div id="info">EZ Ups removed. Tables are closer together. New dogs join automatically every 20 seconds.</div>
+<header><h1>🏕️ Campsite Dogs v10</h1><button id="newGame">New Game</button></header>
+<div id="info">Dogs are tethered near tents with more time before new dogs arrive. Order randomizes each game.</div>
 <main id="game">
   <svg id="leashes"></svg>
   <div id="panel">
     <div id="whineOuter"><div id="whine"></div></div>
     <div id="status">Loading campsite...</div>
-    <div id="mini">Only chairs move. Tables, tents, and fire pit are fixed.</div>
+    <div id="mini">Dogs: <span id="dogCount">0</span>/5. Only chairs move. No EZ Ups.</div>
   </div>
 </main>
 <script>
+if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister()));}
+if(window.caches){caches.keys().then(keys=>keys.forEach(k=>caches.delete(k)));}
+
 const DOGS=[
-{name:"Reba",breed:"brown corgi",className:"dog brown corgi",speed:.85,leash:150,patience:.75,curiosity:.9},
-{name:"Mollye",breed:"brown German Shepherd",className:"dog brown",speed:1.25,leash:165,patience:1.2,curiosity:1.35},
-{name:"Stella",breed:"black lab",className:"dog black",speed:1.08,leash:165,patience:1.0,curiosity:1.25},
-{name:"Percy",breed:"Coton",className:"dog coton",speed:1.38,leash:155,patience:1.35,curiosity:1.55},
-{name:"Lizzie",breed:"black lab",className:"dog black",speed:1.15,leash:170,patience:1.1,curiosity:1.35}
+{name:"Reba",breed:"brown corgi",className:"dog brown corgi",speed:.72,leash:175,patience:.55,curiosity:.70,tentGroup:"soloA"},
+{name:"Mollye",breed:"brown German Shepherd",className:"dog brown",speed:1.02,leash:185,patience:.85,curiosity:1.05,tentGroup:"pack"},
+{name:"Stella",breed:"black lab",className:"dog black",speed:.92,leash:185,patience:.75,curiosity:.95,tentGroup:"pack"},
+{name:"Percy",breed:"Coton",className:"dog coton",speed:1.10,leash:175,patience:1.0,curiosity:1.15,tentGroup:"soloB"},
+{name:"Lizzie",breed:"black lab",className:"dog black",speed:.96,leash:190,patience:.8,curiosity:1.0,tentGroup:"pack"}
 ];
-const game=document.getElementById("game"), leashSvg=document.getElementById("leashes"), whine=document.getElementById("whine"), statusEl=document.getElementById("status");
-let level=1,dogs=[],obstacles=[],dragging=null,dragType=null,offX=0,offY=0,whineMeter=0,warnings=0,loop=null,last=performance.now(),levelTimer=0;
-function rand(a,b){return a+Math.random()*(b-a)} function distance(a,b,c,d){return Math.hypot(a-c,b-d)}
+
+const game=document.getElementById("game"), leashSvg=document.getElementById("leashes"), whine=document.getElementById("whine"), statusEl=document.getElementById("status"), dogCountEl=document.getElementById("dogCount");
+let dogOrder=[],dogs=[],obstacles=[],dragging=null,dragType=null,offX=0,offY=0,whineMeter=0,warnings=0,loop=null,last=performance.now(),joinTimer=0;
+const JOIN_INTERVAL=30000;
+
+function rand(a,b){return a+Math.random()*(b-a)}
+function distance(a,b,c,d){return Math.hypot(a-c,b-d)}
+function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a}
 function ccw(A,B,C){return (C.y-A.y)*(B.x-A.x)>(B.y-A.y)*(C.x-A.x)}
 function segmentsIntersect(A,B,C,D){return ccw(A,C,D)!=ccw(B,C,D)&&ccw(A,B,C)!=ccw(A,B,D)}
-function clearGame(){[...game.querySelectorAll(".dog,.stake,.obstacle")].forEach(e=>e.remove());leashSvg.innerHTML="";dogs=[];obstacles=[];whineMeter=0;warnings=0;levelTimer=0}
-function startGame(){level=1;buildLevel()}
-function pctX(v){return game.clientWidth*v} function pctY(v){return game.clientHeight*v}
+
+function clearGame(){
+ [...game.querySelectorAll(".dog,.stake,.obstacle")].forEach(e=>e.remove());
+ leashSvg.innerHTML="";dogs=[];obstacles=[];whineMeter=0;warnings=0;joinTimer=0;dogCountEl.textContent="0";
+}
+
+function startGame(){
+ dogOrder=shuffle(DOGS);
+ clearGame();
+ buildObstacles();
+ addDog(0);
+ if(loop) cancelAnimationFrame(loop);
+ last=performance.now(); loop=requestAnimationFrame(tick);
+}
+
+function pctX(v){return game.clientWidth*v}
+function pctY(v){return game.clientHeight*v}
 function makeObstacle(type,label,x,y,moveable=false){
  const ob=document.createElement("div");
  ob.className=`obstacle ${type} ${moveable?"moveable":"fixed"}`;
@@ -86,44 +108,60 @@ function makeObstacle(type,label,x,y,moveable=false){
  game.appendChild(ob); obstacles.push(ob);
 }
 function buildObstacles(){
- // Fixed: 4 tents, 4 close tables, 1 fire pit. Moveable: 6 chairs. EZ Ups removed.
- makeObstacle("tent","",pctX(.08),pctY(.10),false);
- makeObstacle("tent","",pctX(.74),pctY(.10),false);
- makeObstacle("tent","",pctX(.07),pctY(.68),false);
+ // 4 fixed tents
+ makeObstacle("tent","",pctX(.08),pctY(.10),false);  // Reba-ish solo tent
+ makeObstacle("tent","",pctX(.74),pctY(.10),false);  // Mollye/Stella/Lizzie tent area
+ makeObstacle("tent","",pctX(.07),pctY(.68),false);  // Percy-ish solo tent
  makeObstacle("tent","",pctX(.75),pctY(.69),false);
 
- // Tables clustered near the center to make realistic table/chair tangles.
- makeObstacle("table","▤",pctX(.35),pctY(.36),false);
- makeObstacle("table","▤",pctX(.51),pctY(.36),false);
- makeObstacle("table","▤",pctX(.35),pctY(.53),false);
- makeObstacle("table","▤",pctX(.51),pctY(.53),false);
+ // 4 fixed tables closer together, but not directly on top of the tent tethers
+ makeObstacle("table","▤",pctX(.34),pctY(.38),false);
+ makeObstacle("table","▤",pctX(.52),pctY(.38),false);
+ makeObstacle("table","▤",pctX(.34),pctY(.55),false);
+ makeObstacle("table","▤",pctX(.52),pctY(.55),false);
 
- makeObstacle("fire","🔥",pctX(.46),pctY(.45),false);
+ // fixed fire pit
+ makeObstacle("fire","🔥",pctX(.45),pctY(.47),false);
 
- makeObstacle("chair","🪑",pctX(.27),pctY(.37),true);
- makeObstacle("chair","🪑",pctX(.62),pctY(.37),true);
- makeObstacle("chair","🪑",pctX(.27),pctY(.55),true);
- makeObstacle("chair","🪑",pctX(.62),pctY(.55),true);
- makeObstacle("chair","🪑",pctX(.44),pctY(.28),true);
- makeObstacle("chair","🪑",pctX(.44),pctY(.64),true);
+ // 6 movable chairs
+ makeObstacle("chair","🪑",pctX(.26),pctY(.40),true);
+ makeObstacle("chair","🪑",pctX(.63),pctY(.40),true);
+ makeObstacle("chair","🪑",pctX(.26),pctY(.57),true);
+ makeObstacle("chair","🪑",pctX(.63),pctY(.57),true);
+ makeObstacle("chair","🪑",pctX(.43),pctY(.30),true);
+ makeObstacle("chair","🪑",pctX(.43),pctY(.65),true);
 }
-function addDog(i){
- const w=game.clientWidth,h=game.clientHeight,cx=w*.5,cy=h*.43;
- const stakePositions=[[cx-45,cy-42],[cx+45,cy-42],[cx-55,cy+42],[cx+55,cy+42],[cx,cy+88]];
- const dogStarts=[[cx+48,cy+15],[cx-35,cy+20],[cx+18,cy-50],[cx-68,cy-8],[cx+70,cy-16]];
- const d=DOGS[i], [sx,sy]=stakePositions[i], [x,y]=dogStarts[i];
+function anchorForDog(d, packIndex){
+ const w=game.clientWidth,h=game.clientHeight;
+ const anchors={
+   soloA:{stake:[w*.17,h*.20],start:[w*.23,h*.28]},
+   soloB:{stake:[w*.17,h*.77],start:[w*.25,h*.68]},
+   pack0:{stake:[w*.78,h*.21],start:[w*.68,h*.28]},
+   pack1:{stake:[w*.84,h*.25],start:[w*.73,h*.34]},
+   pack2:{stake:[w*.75,h*.31],start:[w*.66,h*.38]},
+   fallback:{stake:[w*.78,h*.78],start:[w*.68,h*.67]}
+ };
+ if(d.tentGroup==="soloA") return anchors.soloA;
+ if(d.tentGroup==="soloB") return anchors.soloB;
+ if(d.tentGroup==="pack") return anchors["pack"+(packIndex%3)];
+ return anchors.fallback;
+}
+function addDog(orderIndex){
+ if(orderIndex<0 || orderIndex>=dogOrder.length || dogs.length>orderIndex) return;
+ const d=dogOrder[orderIndex];
+ const packIndex=dogOrder.slice(0,orderIndex+1).filter(x=>x.tentGroup==="pack").length-1;
+ const a=anchorForDog(d, Math.max(0,packIndex));
+ const [sx,sy]=a.stake, [x,y]=a.start;
  const stake=document.createElement("div"); stake.className="stake"; stake.style.left=sx+"px"; stake.style.top=sy+"px"; game.appendChild(stake);
  const path=document.createElementNS("http://www.w3.org/2000/svg","path"); path.setAttribute("class","leashPath"); leashSvg.appendChild(path);
- const dog=document.createElement("div"); dog.className=d.className; dog.innerHTML=`<div class="name">${d.name}</div><div class="tail"></div><div class="body"></div><div class="head"></div><div class="ear left"></div><div class="ear right"></div><div class="face">● ●<br>ᴥ</div><div class="legs">▌▌</div>`;
+ const dog=document.createElement("div"); dog.className=d.className;
+ dog.innerHTML=`<div class="name">${d.name}</div><div class="tail"></div><div class="body"></div><div class="head"></div><div class="ear left"></div><div class="ear right"></div><div class="face">● ●<br>ᴥ</div><div class="legs">▌▌</div>`;
  dog.addEventListener("pointerdown",startDragDog); game.appendChild(dog);
- dogs.push({...d,el:dog,path,stakeX:sx,stakeY:sy,x,y,tx:x+rand(-35,35),ty:y+rand(-35,35),wrapped:[],dogTangled:false,held:false,stuckOn:null,stuckTimer:0});
+ dogs.push({...d,el:dog,path,stakeX:sx,stakeY:sy,x,y,tx:x+rand(-20,20),ty:y+rand(-20,20),wrapped:[],dogTangled:false,held:false,stuckOn:null,stuckTimer:0});
+ dogCountEl.textContent=dogs.length;
+ statusEl.textContent=`🐕 ${d.name} joined near ${d.tentGroup==="pack"?"the shared tent":"a tent"}! Dogs: ${dogs.length}/5.`;
 }
-function buildLevel(){
- clearGame();
- buildObstacles();
- for(let i=0;i<level;i++) addDog(i);
- if(loop) cancelAnimationFrame(loop); last=performance.now(); loop=requestAnimationFrame(tick);
-}
+
 function startDragObstacle(e){dragging=e.currentTarget;dragType="obstacle";dragging.setPointerCapture(e.pointerId);const r=dragging.getBoundingClientRect();offX=e.clientX-r.left;offY=e.clientY-r.top;dragging.addEventListener("pointermove",moveDrag);dragging.addEventListener("pointerup",endDrag)}
 function startDragDog(e){dragging=e.currentTarget;dragType="dog";dragging.classList.add("dragging");dragging.setPointerCapture(e.pointerId);const d=dogs.find(x=>x.el===dragging);d.held=true;d.stuckOn=null;d.stuckTimer=0;const gr=game.getBoundingClientRect();offX=e.clientX-gr.left-d.x;offY=e.clientY-gr.top-d.y;dragging.addEventListener("pointermove",moveDrag);dragging.addEventListener("pointerup",endDrag)}
 function usedLeash(d){let pts=[{x:d.stakeX,y:d.stakeY},...d.wrapped,{x:d.x,y:d.y}],total=0;for(let i=0;i<pts.length-1;i++) total+=distance(pts[i].x,pts[i].y,pts[i+1].x,pts[i+1].y);return total}
@@ -132,7 +170,7 @@ function constrainDogToLeash(d,x,y){
  const used=usedLeash(d);
  if(used>d.leash){
    const prev=d.wrapped.length?d.wrapped[d.wrapped.length-1]:{x:d.stakeX,y:d.stakeY};
-   const remaining=Math.max(8,d.leash-(used-distance(prev.x,prev.y,x,y)));
+   const remaining=Math.max(12,d.leash-(used-distance(prev.x,prev.y,x,y)));
    const a=Math.atan2(y-prev.y,x-prev.x);
    x=prev.x+Math.cos(a)*remaining; y=prev.y+Math.sin(a)*remaining;
    if(d.wrapped.length)d.stuckOn=d.wrapped[d.wrapped.length-1].id;
@@ -153,14 +191,16 @@ function moveDrag(e){
  }
 }
 function endDrag(e){if(dragging){dragging.classList.remove("dragging");dragging.removeEventListener("pointermove",moveDrag);dragging.removeEventListener("pointerup",endDrag)} if(dragType==="dog"){const d=dogs.find(x=>x.el===dragging);if(d)d.held=false} dragging=null;dragType=null}
+
 function obstacleCenter(ob){return{x:ob.offsetLeft+ob.offsetWidth/2,y:ob.offsetTop+ob.offsetHeight/2,r:Math.max(ob.offsetWidth,ob.offsetHeight)/2}}
-function lineHitsObstacle(x1,y1,x2,y2,ob){const c=obstacleCenter(ob),dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy||1;let t=((c.x-x1)*dx+(c.y-y1)*dy)/len2;t=Math.max(0,Math.min(1,t));const px=x1+t*dx,py=y1+t*dy;return distance(px,py,c.x,c.y)<c.r*.82}
+function lineHitsObstacle(x1,y1,x2,y2,ob){const c=obstacleCenter(ob),dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy||1;let t=((c.x-x1)*dx+(c.y-y1)*dy)/len2;t=Math.max(0,Math.min(1,t));const px=x1+t*dx,py=y1+t*dy;return distance(px,py,c.x,c.y)<c.r*.70}
 function chooseTarget(d){
- if(obstacles.length && Math.random()<0.82*d.curiosity){
-   const ob=obstacles[Math.floor(Math.random()*obstacles.length)], c=obstacleCenter(ob), a=rand(0,Math.PI*2), r=rand(0,c.r*.75);
+ if(obstacles.length && Math.random()<0.50*d.curiosity){
+   const ob=obstacles[Math.floor(Math.random()*obstacles.length)], c=obstacleCenter(ob), a=rand(0,Math.PI*2), r=rand(c.r*.25,c.r*1.2);
    d.tx=c.x+Math.cos(a)*r; d.ty=c.y+Math.sin(a)*r;
  } else {
-   const a=rand(0,Math.PI*2),r=rand(d.leash*.12,d.leash*.65); d.tx=d.stakeX+Math.cos(a)*r; d.ty=d.stakeY+Math.sin(a)*r;
+   const a=rand(0,Math.PI*2),r=rand(d.leash*.10,d.leash*.55);
+   d.tx=d.stakeX+Math.cos(a)*r; d.ty=d.stakeY+Math.sin(a)*r;
  }
 }
 function moveDogs(dt){
@@ -168,13 +208,13 @@ function moveDogs(dt){
   if(d.held)return;
   if(d.stuckOn){
     const ob=obstacles.find(o=>o.dataset.id===d.stuckOn);
-    if(ob){const c=obstacleCenter(ob); d.x+=(c.x-d.x)*0.025; d.y+=(c.y-d.y)*0.025; d.stuckTimer+=dt;}
+    if(ob){const c=obstacleCenter(ob); d.x+=(c.x-d.x)*0.018; d.y+=(c.y-d.y)*0.018; d.stuckTimer+=dt;}
     return;
   }
-  if(distance(d.x,d.y,d.tx,d.ty)<14||Math.random()<.012)chooseTarget(d);
-  if(d.name==="Lizzie"&&dogs.length>1&&Math.random()<.02){const o=dogs[Math.floor(Math.random()*(dogs.length-1))];d.tx=o.x+rand(-25,25);d.ty=o.y+rand(-25,25)}
+  if(distance(d.x,d.y,d.tx,d.ty)<16||Math.random()<.008)chooseTarget(d);
+  if(d.name==="Lizzie"&&dogs.length>1&&Math.random()<.012){const o=dogs[Math.floor(Math.random()*(dogs.length-1))];d.tx=o.x+rand(-18,18);d.ty=o.y+rand(-18,18)}
   const a=Math.atan2(d.ty-d.y,d.tx-d.x);
-  let nx=d.x+Math.cos(a)*d.speed*dt*.058, ny=d.y+Math.sin(a)*d.speed*dt*.058;
+  let nx=d.x+Math.cos(a)*d.speed*dt*.045, ny=d.y+Math.sin(a)*d.speed*dt*.045;
   const p=constrainDogToLeash(d,nx,ny); nx=p.x; ny=p.y;
   d.x=Math.max(30,Math.min(game.clientWidth-30,nx));d.y=Math.max(30,Math.min(game.clientHeight-105,ny));
  });
@@ -184,47 +224,45 @@ function updateFurnitureWraps(){
   const start=d.wrapped.length?d.wrapped[d.wrapped.length-1]:{x:d.stakeX,y:d.stakeY};
   obstacles.forEach(ob=>{
     const c=obstacleCenter(ob);
-    const dogNear=distance(d.x,d.y,c.x,c.y)<c.r*.72;
+    const dogNear=distance(d.x,d.y,c.x,c.y)<c.r*.55;
     const crosses=lineHitsObstacle(start.x,start.y,d.x,d.y,ob);
     if(!d.wrapped.some(w=>w.id===ob.dataset.id)&&(crosses||dogNear)){
       d.wrapped.push({id:ob.dataset.id,x:c.x,y:c.y});
-      if(dogNear||usedLeash(d)>d.leash*.92){d.stuckOn=ob.dataset.id;d.stuckTimer=0;}
+      if(dogNear||usedLeash(d)>d.leash*.95){d.stuckOn=ob.dataset.id;d.stuckTimer=0;}
     }
   });
   d.wrapped=d.wrapped.filter((wrap,i)=>{
     const ob=obstacles.find(o=>o.dataset.id===wrap.id); if(!ob)return false;
     const c=obstacleCenter(ob); wrap.x=c.x; wrap.y=c.y;
     const prev=i===0?{x:d.stakeX,y:d.stakeY}:d.wrapped[i-1];
-    const still=lineHitsObstacle(prev.x,prev.y,d.x,d.y,ob)||distance(d.x,d.y,c.x,c.y)<c.r*.88||i<d.wrapped.length-1;
+    const still=lineHitsObstacle(prev.x,prev.y,d.x,d.y,ob)||distance(d.x,d.y,c.x,c.y)<c.r*.72||i<d.wrapped.length-1;
     if(!still&&d.stuckOn===wrap.id){d.stuckOn=null;d.stuckTimer=0;}
     return still;
   });
-  if(usedLeash(d)>d.leash*.96&&d.wrapped.length){d.stuckOn=d.wrapped[d.wrapped.length-1].id;d.stuckTimer+=16;}
+  if(usedLeash(d)>d.leash*.98&&d.wrapped.length){d.stuckOn=d.wrapped[d.wrapped.length-1].id;d.stuckTimer+=16;}
  });
 }
 function leashSegments(d){const pts=[{x:d.stakeX,y:d.stakeY},...d.wrapped,{x:d.x,y:d.y}],segs=[];for(let i=0;i<pts.length-1;i++)segs.push([pts[i],pts[i+1]]);return segs}
 function updateDogCrossings(){dogs.forEach(d=>d.dogTangled=false);for(let i=0;i<dogs.length;i++)for(let j=i+1;j<dogs.length;j++){let crossed=false;for(const a of leashSegments(dogs[i]))for(const b of leashSegments(dogs[j]))if(segmentsIntersect(a[0],a[1],b[0],b[1]))crossed=true;if(crossed){dogs[i].dogTangled=true;dogs[j].dogTangled=true}}}
 function drawLeashes(){dogs.forEach(d=>{const pts=[{x:d.stakeX,y:d.stakeY},...d.wrapped,{x:d.x,y:d.y}];d.path.setAttribute("d",pts.map((p,i)=>(i?"L":"M")+p.x.toFixed(1)+" "+p.y.toFixed(1)).join(" "));d.path.setAttribute("class",d.dogTangled?"leashPath dogTangled":(d.wrapped.length?"leashPath furnitureTangled":"leashPath"));d.el.style.left=d.x+"px";d.el.style.top=d.y+"px";d.el.classList.toggle("stuck",!!d.stuckOn);d.el.style.filter=(d.dogTangled||d.wrapped.length||d.stuckOn)?"drop-shadow(0 0 8px #c84b40)":""})}
 function addNextDogIfReady(dt){
- levelTimer += dt;
- if(level < DOGS.length && levelTimer > 20000){
-   level++;
-   addDog(level-1);
-   levelTimer = 0;
-   statusEl.textContent = `🐕 ${DOGS[level-1].name} joined the campsite!`;
+ joinTimer+=dt;
+ if(dogs.length<DOGS.length && joinTimer>JOIN_INTERVAL){
+   addDog(dogs.length);
+   joinTimer=0;
  }
 }
 function updateWhine(dt){
  const tangled=dogs.filter(d=>d.wrapped.length||d.dogTangled||d.stuckOn);
- if(tangled.length)whineMeter+=tangled.reduce((a,d)=>a+d.patience+(d.wrapped.length*.75)+(d.dogTangled?.8:0)+(d.stuckOn?1.8:0)+(usedLeash(d)>d.leash*.92?1.2:0),0)*dt*.011;else whineMeter-=dt*.02;
+ if(tangled.length)whineMeter+=tangled.reduce((a,d)=>a+d.patience+(d.wrapped.length*.45)+(d.dogTangled?.45:0)+(d.stuckOn?1.15:0)+(usedLeash(d)>d.leash*.95?.7:0),0)*dt*.0065;
+ else whineMeter-=dt*.026;
  whineMeter=Math.max(0,Math.min(100,whineMeter));whine.style.width=whineMeter+"%";
- if(whineMeter>=100){warnings++;whineMeter=25;dogs.forEach(d=>{d.wrapped=[];d.dogTangled=false;d.stuckOn=null;chooseTarget(d)});statusEl.textContent=`🚨 Campground host warning ${warnings}/3! Dogs reset.`;if(warnings>=3)setTimeout(buildLevel,900)}
- else if(tangled.length){const names=tangled.map(d=>d.name).join(", ");statusEl.textContent=`${names} stuck/tangled! Drag dogs back around tables and tents; only chairs can move.`}
- else statusEl.textContent=`Dogs in camp: ${dogs.map(d=>d.name).join(", ")}. Next dog joins soon.`;
+ if(whineMeter>=100){warnings++;whineMeter=15;dogs.forEach(d=>{d.wrapped=[];d.dogTangled=false;d.stuckOn=null;chooseTarget(d)});statusEl.textContent=`🚨 Campground host warning ${warnings}/3! Dogs reset.`;if(warnings>=3)setTimeout(startGame,900)}
+ else if(tangled.length){const names=tangled.map(d=>d.name).join(", ");statusEl.textContent=`${names} tangled/stuck. More time now — drag them back around the tent/table/chair path.`}
+ else statusEl.textContent=`Dogs in camp: ${dogs.map(d=>d.name).join(", ")}. Next dog joins in ${Math.ceil((JOIN_INTERVAL-joinTimer)/1000)}s.`;
 }
 function tick(now){const dt=Math.min(40,now-last);last=now;moveDogs(dt);updateFurnitureWraps();updateDogCrossings();drawLeashes();addNextDogIfReady(dt);updateWhine(dt);loop=requestAnimationFrame(tick)}
 document.getElementById("newGame").addEventListener("click",startGame);
-if("serviceWorker" in navigator){navigator.serviceWorker.register("service-worker.js").catch(()=>{})}
 startGame();
 </script>
 </body>
